@@ -12,6 +12,7 @@ router.get('/', async (req, res) => {
   try {
     const productData = await Product.findAll({
       include: [
+        { model: Category },
         {
           model: Tag,
           attributs: ['tag_name'],
@@ -37,7 +38,16 @@ router.get('/:id', async (req, res) => {
   // be sure to include its associated Category and Tag data
   try {
     const productData = await Product.findByPk(req.params.id, {
-      include: [{ model: Category }, { model: Tag }],
+      include: [
+        { model: Category },
+        {
+          model: Tag,
+          attributes: ['tag_name'],
+          through: {
+            model: ProductTag,
+          },
+        },
+      ],
     });
     if (!productData) {
       res.status(404).json({ message: 'No category with this id!' });
@@ -127,8 +137,51 @@ router.put('/:id', (req, res) => {
     });
 });
 
-router.delete('/:id', (req, res) => {
+function dropForeignKey() {
+  return new Promise((resolve, reject) => {
+    sequelize.literal(
+      '(ALTER TABLE product_tag DROP FOREIGN KEY(product_id)), DROP FOREIGN KEY(tag_id))'
+    );
+    resolve('done');
+  });
+}
+
+router.delete('/:id', async (req, res) => {
+  var message = await dropForeignKey();
+
+  ProductTag.findAll({ where: { product_id: req.params.id } })
+    .then((productTags) => {
+      const productTagIds = productTags.map(({ id }) => id);
+      console.log('productTagIds', productTagIds);
+      return Promise([ProductTag.destroy({ where: { id: productTagIds } })]);
+    })
+    .then((updatedProductTags) => {
+      sequelize.literal(
+        '( ALTER TABLE product_tag ADD FOREIGN KEY(product_id)), ADD FOREIGN KEY(tag_id) )'
+      );
+      res.json(updatedProductTags);
+    })
+    .catch((err) => {
+      res.status(400).json(err);
+    });
+
   // delete one product by its `id` value
+  // Product.destroy({
+  //   where: {
+  //     id: req.params.id,
+  //   },
+  // })
+  //   .then((product) => {
+  //     return ProductTag.findAll({ where: { product_id: req.params.id } });
+  //   })
+  //   .then((productTags) => {
+  //     const ProductTagsToRemove = productTags;
+  //     return Promise([ProductTag.beforeBulkDestroy(ProductTagsToRemove)]);
+  //   })
+  //   .then((updatedProductTags) => res.json(updatedProductTags))
+  //   .catch((err) => {
+  //     res.status(400).json(err);
+  //   });
 });
 
 module.exports = router;
