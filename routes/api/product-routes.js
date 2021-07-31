@@ -156,6 +156,7 @@ router.delete('/:id', async (req, res) => {
       return Promise([ProductTag.destroy({ where: { id: productTagIds } })]);
     })
     .then((updatedProductTags) => {
+      console.log('updatedProductTags', updatedProductTags);
       sequelize.literal(
         '( ALTER TABLE product_tag ADD FOREIGN KEY(product_id)), ADD FOREIGN KEY(tag_id) )'
       );
